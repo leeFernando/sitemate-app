@@ -1,104 +1,70 @@
 import * as React from 'react';
-import { KeyboardAvoidingView, Platform, View } from 'react-native';
-import Animated, { FadeInUp, FadeOutDown, LayoutAnimationConfig } from 'react-native-reanimated';
-import { Info } from '~/lib/icons/Info';
-import { Avatar, AvatarFallback, AvatarImage } from '~/components/ui/avatar';
-import { Button } from '~/components/ui/button';
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardFooter,
-  CardHeader,
-  CardTitle,
-} from '~/components/ui/card';
-import { Progress } from '~/components/ui/progress';
-import { Text } from '~/components/ui/text';
-import { Tooltip, TooltipContent, TooltipTrigger } from '~/components/ui/tooltip';
+import { FlatList, KeyboardAvoidingView, Linking, Platform, View } from 'react-native';
+import debounce from 'lodash/debounce'
 import { Input } from '~/components/ui/input'
+import { Text } from '~/components/ui/text'
+import { useListNews } from '~/lib/hooks/useListNews'
+import { Button } from '~/components/ui/button'
+import { Card } from '~/components/ui/card'
+import { Loader } from '~/lib/icons/Loader';
+import { MOCK_RESPONSE } from '~/lib/mocks'
 
-const GITHUB_AVATAR_URI =
-  'https://i.pinimg.com/originals/ef/a2/8d/efa28d18a04e7fa40ed49eeb0ab660db.jpg';
+const DEFAULT_SEARCH = ''
 
 export default function Screen() {
-  const [progress, setProgress] = React.useState(78);
+  const [inputValue, setInputValue] = React.useState(DEFAULT_SEARCH)
+  const [search, setSearch] = React.useState(DEFAULT_SEARCH)
+  
+  const { isLoading, data } = useListNews({ filters: { q: search } })
+  const { articles, status, message } = data || {}
 
-  function updateProgressValue() {
-    setProgress(Math.floor(Math.random() * 100));
+  const debounceSetSearch = React.useCallback(debounce(setSearch, 500), [])
+
+  const onChangeText = (value: string) => {
+    setInputValue(value)
+    debounceSetSearch(value)
   }
+
+  const onLinkPress = (url: string) => {
+    if (url) Linking.openURL(url)
+  }
+
   return (
     <KeyboardAvoidingView 
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-      className='flex-1 justify-center items-center gap-5 p-6 bg-secondary/30'
+      className='flex-col flex-1 gap-5 p-6 bg-secondary/30'
     >
-      <Card className='w-full max-w-sm p-6 rounded-2xl'>
-        <CardHeader className='items-center'>
-          <Avatar alt="Rick Sanchez's Avatar" className='w-24 h-24'>
-            <AvatarImage source={{ uri: GITHUB_AVATAR_URI }} />
-            <AvatarFallback>
-              <Text>RS</Text>
-            </AvatarFallback>
-          </Avatar>
-          <View className='p-3' />
-          <CardTitle className='pb-2 text-center'>Rick Sanchez</CardTitle>
-          <View className='flex-row'>
-            <CardDescription className='text-base font-semibold'>Scientist</CardDescription>
-            <Tooltip delayDuration={150}>
-              <TooltipTrigger className='px-2 pb-0.5 active:opacity-50'>
-                <Info size={14} strokeWidth={2.5} className='w-4 h-4 text-foreground/70' />
-              </TooltipTrigger>
-              <TooltipContent className='py-2 px-4 shadow'>
-                <Text className='native:text-lg'>Freelance</Text>
-              </TooltipContent>
-            </Tooltip>
-          </View>
-        </CardHeader>
-        <CardContent>
-          <View className='flex-row justify-around gap-3'>
-            <View className='items-center'>
-              <Text className='text-sm text-muted-foreground'>Dimension</Text>
-              <Text className='text-xl font-semibold'>C-137</Text>
-            </View>
-            <View className='items-center'>
-              <Text className='text-sm text-muted-foreground'>Age</Text>
-              <Text className='text-xl font-semibold'>70</Text>
-            </View>
-            <View className='items-center'>
-              <Text className='text-sm text-muted-foreground'>Species</Text>
-              <Text className='text-xl font-semibold'>Human</Text>
-            </View>
-          </View>
-        </CardContent>
-        <CardFooter className='flex-col gap-3 pb-0'>
-          <View className='flex-row items-center overflow-hidden'>
-            <Text className='text-sm text-muted-foreground'>Productivity:</Text>
-            <LayoutAnimationConfig skipEntering>
-              <Animated.View
-                key={progress}
-                entering={FadeInUp}
-                exiting={FadeOutDown}
-                className='w-11 items-center'
+      <Input
+        value={inputValue}
+        onChangeText={onChangeText}
+        placeholder='Start searching...'
+        autoCapitalize='none'
+    />
+      {isLoading ? (
+        <Loader className='color-slate-400 animate-spin mx-auto' />
+      ) : status === 'error' ? (
+        <Card className="p-3">
+          <Text className="color-slate-500">{message}</Text>
+        </Card>
+      ) : !articles?.length ? (
+        <Text className='mx-auto mt-14 text-lg font-semibold text-slate-400'>No results</Text>
+      ) : (
+        <View className='max-h-[85%]'>
+          <FlatList
+            data={articles || []}
+            keyExtractor={item => item.title}
+            renderItem={({ item }) => (
+              <Button
+                variant='outline'
+                className='py-2 mx-3 bg-inherit border-0 rounded-none border-b-2 border-slate-200 border-solid'
+                onPress={() => onLinkPress(item.url)}
               >
-                <Text className='text-sm font-bold text-sky-600'>{progress}%</Text>
-              </Animated.View>
-            </LayoutAnimationConfig>
-          </View>
-          <Progress value={progress} className='h-2' indicatorClassName='bg-sky-600' />
-          <View />
-          <Button
-            variant='outline'
-            className='shadow shadow-foreground/5'
-            onPress={updateProgressValue}
-          >
-            <Text>Update</Text>
-          </Button>
-          <Input
-            placeholder='Write some stuff...'
-            aria-labelledbyledBy='inputLabel'
-            aria-errormessage='inputError'
+                <Text>{item.title}</Text>
+              </Button>
+            )}
           />
-        </CardFooter>
-      </Card>
+        </View>
+      )}
     </KeyboardAvoidingView>
   );
 }
